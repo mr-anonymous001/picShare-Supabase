@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head><title>Photo Detail</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+  <button onclick="history.back()">← Back</button>
+  <div id="detail"></div>
+  <hr>
+  <h3>Comments</h3>
+  <textarea id="comment"></textarea><br>
+  <button onclick="postComment()">Post</button>
+  <div id="comments"></div>
+  <button onclick="like()" style="margin-top:20px">❤️ Like</button>
+</div>
+
+<script type="module" src="../src/photo.js"></script>
+</body>
+</html>

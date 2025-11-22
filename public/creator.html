@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Creator – Upload</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="container">
+  <h1>Creator Upload</h1>
+  <button onclick="supabase.auth.signOut().then(()=>location.href='index.html')">Logout</button>
+  <hr>
+  <input type="file" id="photo" accept="image/*"><br><br>
+  <input type="text" id="title" placeholder="Title" required><br><br>
+  <textarea id="caption" placeholder="Caption (optional)"></textarea><br><br>
+  <input type="text" id="location" placeholder="Location"><br><br>
+  <input type="text" id="people" placeholder="People (comma separated)"><br><br>
+  <button onclick="uploadPhoto()">Upload Photo</button>
+  <p id="status"></p>
+</div>
+
+<script type="module" src="../src/creator.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+body { 
+    font-family: Arial; 
+    background:#f0f0f0; 
+    margin:0; 
+    padding:20px; 
+}
+
+.container { 
+    max-width:800px; 
+    margin:auto; 
+    background:white;
+    padding:20px; 
+    border-radius:10px; 
+    box-shadow:0 0 10px rgba(0,0,0,0.1); 
+}
+
+input, textarea, button { 
+    width:100%; 
+    padding:10px; 
+    margin:8px 0; 
+    border-radius:5px; 
+    border:1px solid #ccc; 
+}
+
+button { 
+    background:#4285f4;
+    color:white; 
+    cursor:pointer; 
+}
+
+button:hover { 
+    background:#3367d6; 
+}
+
+.photo-card { 
+    border:1px solid #ddd; 
+    margin:15px 0; 
+    padding:10px; 
+    border-radius:8px; 
+}
+
+.photo-card img {
+    width:100%; 
+    cursor:pointer; 
+}
