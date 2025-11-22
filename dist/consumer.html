@@ -1,17 +1,97 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Consumer Feed</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoShare - Discover</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="container">
-  <h1>Photo Feed</h1>
-  <button onclick="supabase.auth.signOut().then(()=>location.href='index.html')">Logout</button>
-  <input type="text" id="search" placeholder="Search titles..." onkeyup="filterFeed()">
-  <div id="feed"></div>
-</div>
+  <div class="container">
+    <div class="header">
+      <h1>📸 PhotoShare</h1>
+      <button id="logoutBtn" class="secondary">Logout</button>
+    </div>
 
-<script type="module" src="../src/consumer.js"></script>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Search by title, location, people, or type..." onkeyup="filterFeed()">
+    </div>
+
+    <div id="feed" class="photo-grid"></div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./supabaseClient.js";
+
+    // Check authentication
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      location.href = 'index.html';
+    }
+
+    // Logout button
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      location.href = 'index.html';
+    });
+
+    const feed = document.getElementById("feed");
+    let allPhotos = [];
+
+    // Load photos
+    supabase.from('photos').select('*').order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error loading photos:', error);
+          feed.innerHTML = '<p style="text-align:center;color:var(--text-light);">Error loading photos. Please refresh.</p>';
+          return;
+        }
+        allPhotos = data || [];
+        renderFeed(allPhotos);
+      });
+
+    // Real-time updates
+    supabase.channel('public:photos').on('postgres_changes', { 
+      event: '*', 
+      schema: 'public', 
+      table: 'photos' 
+    }, payload => {
+      location.reload();
+    }).subscribe();
+
+    window.filterFeed = () => {
+      const term = document.getElementById("search").value.toLowerCase();
+      const filtered = allPhotos.filter(p => {
+        const title = (p.title || '').toLowerCase();
+        const caption = (p.caption || '').toLowerCase();
+        const location = (p.location || '').toLowerCase();
+        const people = Array.isArray(p.people) ? p.people.join(' ').toLowerCase() : '';
+        const searchText = `${title} ${caption} ${location} ${people}`;
+        return searchText.includes(term);
+      });
+      renderFeed(filtered);
+    };
+
+    function renderFeed(photos) {
+      if (photos.length === 0) {
+        feed.innerHTML = '<p style="text-align:center;color:var(--text-light);grid-column:1/-1;padding:40px;">No photos found. Try a different search term.</p>';
+        return;
+      }
+
+      feed.innerHTML = photos.map(p => `
+        <div class="photo-card" onclick="location.href='photo.html?id=${p.id}'">
+          <img src="${p.image_url}" alt="${p.title || 'Photo'}" loading="lazy">
+          <div class="photo-card-content">
+            <h3>${p.title || 'Untitled'}</h3>
+            ${p.caption ? `<p>${p.caption}</p>` : ''}
+            <div class="photo-card-meta">
+              ${p.location ? `<span>📍 ${p.location}</span>` : ''}
+              ${p.people && p.people.length > 0 ? `<span>👥 ${p.people.join(', ')}</span>` : ''}
+            </div>
+          </div>
+        </div>
+      `).join("");
+    }
+  </script>
 </body>
 </html>

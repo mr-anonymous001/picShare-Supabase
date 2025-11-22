@@ -1,23 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Creator – Upload</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoShare - Creator</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="container">
-  <h1>Creator Upload</h1>
-  <button onclick="supabase.auth.signOut().then(()=>location.href='index.html')">Logout</button>
-  <hr>
-  <input type="file" id="photo" accept="image/*"><br><br>
-  <input type="text" id="title" placeholder="Title" required><br><br>
-  <textarea id="caption" placeholder="Caption (optional)"></textarea><br><br>
-  <input type="text" id="location" placeholder="Location"><br><br>
-  <input type="text" id="people" placeholder="People (comma separated)"><br><br>
-  <button onclick="uploadPhoto()">Upload Photo</button>
-  <p id="status"></p>
-</div>
+  <div class="container">
+    <div class="header">
+      <h1>📸 Upload Photo</h1>
+      <button id="logoutBtn" class="secondary">Logout</button>
+    </div>
 
-<script type="module" src="../src/creator.js"></script>
+    <div class="upload-form">
+      <div class="form-group">
+        <label for="photo">Photo</label>
+        <div class="file-upload-area" id="uploadArea" onclick="document.getElementById('photo').click()">
+          <div class="upload-icon">📷</div>
+          <div class="upload-text" id="uploadText">Click to select a photo</div>
+        </div>
+        <input type="file" id="photo" accept="image/*">
+      </div>
+
+      <div class="form-group">
+        <label for="title">Title *</label>
+        <input type="text" id="title" placeholder="Enter photo title" required>
+      </div>
+
+      <div class="form-group">
+        <label for="caption">Caption</label>
+        <textarea id="caption" placeholder="Describe your photo (optional)" rows="4"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="location">Location</label>
+        <input type="text" id="location" placeholder="Where was this taken?">
+      </div>
+
+      <div class="form-group">
+        <label for="people">People</label>
+        <input type="text" id="people" placeholder="Names separated by commas (e.g., John, Jane)">
+      </div>
+
+      <button onclick="uploadPhoto()">Upload Photo</button>
+      <p id="status"></p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./supabaseClient.js";
+
+    // Check authentication
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      location.href = 'index.html';
+    }
+
+    // Logout button
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      location.href = 'index.html';
+    });
+
+    // File upload preview
+    document.getElementById('photo').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const uploadArea = document.getElementById('uploadArea');
+      const uploadText = document.getElementById('uploadText');
+      
+      if (file) {
+        uploadArea.classList.add('has-file');
+        uploadText.textContent = `Selected: ${file.name}`;
+      } else {
+        uploadArea.classList.remove('has-file');
+        uploadText.textContent = 'Click to select a photo';
+      }
+    });
+
+    window.uploadPhoto = async () => {
+      const file = document.getElementById("photo").files[0];
+      const title = document.getElementById("title").value.trim();
+      const status = document.getElementById("status");
+      
+      if (!file || !title) {
+        status.innerText = "Photo and title are required";
+        status.className = "error";
+        return;
+      }
+
+      status.innerText = "Uploading...";
+      status.className = "info";
+
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, file);
+
+        if (uploadError) {
+          status.innerText = uploadError.message;
+          status.className = "error";
+          return;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+
+        const people = document.getElementById("people").value
+          .split(",")
+          .map(p => p.trim())
+          .filter(p => p);
+
+        const { error } = await supabase.from('photos').insert({
+          title,
+          caption: document.getElementById("caption").value || null,
+          location: document.getElementById("location").value || null,
+          people: people.length ? people : null,
+          image_url: publicUrl
+        });
+
+        if (error) {
+          status.innerText = error.message;
+          status.className = "error";
+        } else {
+          status.innerText = "Photo uploaded successfully! 🎉";
+          status.className = "success";
+          document.querySelectorAll("input, textarea").forEach(el => el.value = "");
+          document.getElementById("photo").value = "";
+          document.getElementById("uploadArea").classList.remove('has-file');
+          document.getElementById("uploadText").textContent = 'Click to select a photo';
+        }
+      } catch (err) {
+        status.innerText = "An error occurred: " + err.message;
+        status.className = "error";
+      }
+    };
+  </script>
 </body>
 </html>

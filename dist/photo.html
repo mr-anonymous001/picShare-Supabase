@@ -1,18 +1,188 @@
 <!DOCTYPE html>
-<html>
-<head><title>Photo Detail</title><link rel="stylesheet" href="css/style.css"></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoShare - Photo Detail</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
 <body>
-<div class="container">
-  <button onclick="history.back()">← Back</button>
-  <div id="detail"></div>
-  <hr>
-  <h3>Comments</h3>
-  <textarea id="comment"></textarea><br>
-  <button onclick="postComment()">Post</button>
-  <div id="comments"></div>
-  <button onclick="like()" style="margin-top:20px">❤️ Like</button>
-</div>
+  <div class="container">
+    <button onclick="history.back()" class="back-button">← Back</button>
+    
+    <div id="detail" class="photo-detail"></div>
+    
+    <div class="comments-section">
+      <h3>💬 Comments</h3>
+      
+      <div class="comment-form">
+        <textarea id="comment" placeholder="Write a comment..."></textarea>
+        <button onclick="postComment()">Post Comment</button>
+      </div>
+      
+      <div id="comments" class="comments-list"></div>
+      
+      <button onclick="like()" class="like-button">❤️ Like</button>
+      <span id="likeCount" class="like-count"></span>
+    </div>
+  </div>
 
-<script type="module" src="../src/photo.js"></script>
+  <script type="module">
+    import { supabase } from "./supabaseClient.js";
+
+    // Check authentication
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      location.href = 'index.html';
+    }
+
+    const urlParams = new URLSearchParams(location.search);
+    const photoId = urlParams.get('id');
+
+    if (!photoId) {
+      document.getElementById("detail").innerHTML = '<p style="color:var(--text-light);">Photo not found.</p>';
+    } else {
+      // Load photo details
+      supabase.from('photos').select('*').eq('id', photoId).single()
+        .then(({ data, error }) => {
+          if (error) {
+            document.getElementById("detail").innerHTML = '<p style="color:var(--text-light);">Error loading photo.</p>';
+            return;
+          }
+          
+          document.getElementById("detail").innerHTML = `
+            <img src="${data.image_url}" alt="${data.title || 'Photo'}">
+            <h2>${data.title || 'Untitled'}</h2>
+            ${data.caption ? `<p class="caption">${data.caption}</p>` : ''}
+            <div class="photo-detail-meta">
+              ${data.location ? `<span>📍 ${data.location}</span>` : ''}
+              ${data.people && data.people.length > 0 ? `<span>👥 ${data.people.join(', ')}</span>` : ''}
+            </div>
+          `;
+        });
+
+      // Load comments
+      function loadComments() {
+        supabase.from('comments').select('*').eq('photo_id', photoId).order('created_at', { ascending: false })
+          .then(({ data, error }) => {
+            if (error) {
+              console.error('Error loading comments:', error);
+              return;
+            }
+            
+            if (!data || data.length === 0) {
+              document.getElementById("comments").innerHTML = '<p style="color:var(--text-light);text-align:center;padding:20px;">No comments yet. Be the first to comment!</p>';
+              return;
+            }
+            
+            document.getElementById("comments").innerHTML = data.map(c => {
+              const date = new Date(c.created_at);
+              return `
+                <div class="comment-item">
+                  <div class="comment-author">${c.user_email || 'Anonymous'}</div>
+                  <div class="comment-text">${c.text}</div>
+                  <div class="comment-date">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</div>
+                </div>
+              `;
+            }).join("");
+          });
+      }
+
+      // Load likes count
+      function loadLikes() {
+        supabase.from('likes').select('*', { count: 'exact' }).eq('photo_id', photoId)
+          .then(({ count, error }) => {
+            if (!error && count !== undefined) {
+              document.getElementById("likeCount").textContent = `${count} ${count === 1 ? 'like' : 'likes'}`;
+            }
+          });
+      }
+
+      loadComments();
+      loadLikes();
+
+      // Real-time updates for comments
+      supabase.channel(`photo-${photoId}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'comments',
+          filter: `photo_id=eq.${photoId}`
+        }, () => {
+          loadComments();
+        })
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'likes',
+          filter: `photo_id=eq.${photoId}`
+        }, () => {
+          loadLikes();
+        })
+        .subscribe();
+
+      window.postComment = async () => {
+        const text = document.getElementById("comment").value.trim();
+        if (!text) return;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          alert('Please log in to comment');
+          return;
+        }
+
+        const { error } = await supabase.from('comments').insert({
+          photo_id: photoId,
+          text,
+          user_email: user.email
+        });
+
+        if (error) {
+          alert('Error posting comment: ' + error.message);
+        } else {
+          document.getElementById("comment").value = "";
+          loadComments();
+        }
+      };
+
+      window.like = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          alert('Please log in to like');
+          return;
+        }
+
+        // Check if already liked
+        const { data: existingLike } = await supabase
+          .from('likes')
+          .select('*')
+          .eq('photo_id', photoId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (existingLike) {
+          // Unlike
+          await supabase
+            .from('likes')
+            .delete()
+            .eq('photo_id', photoId)
+            .eq('user_id', user.id);
+        } else {
+          // Like
+          const { error } = await supabase.from('likes').insert({
+            photo_id: photoId,
+            user_id: user.id
+          });
+          
+          if (error && error.code !== '23505') { // Ignore duplicate key errors
+            alert('Error liking photo: ' + error.message);
+            return;
+          }
+        }
+        
+        loadLikes();
+      };
+    }
+  </script>
 </body>
 </html>

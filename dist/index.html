@@ -1,68 +1,110 @@
 <!DOCTYPE html>
-<html>
-<head><title>PhotoShare Login</title>
-<link rel="stylesheet" href="css/style.css"></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoShare - Login</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
 <body>
-<div class="container">
-  <h1>PhotoShare</h1>
-  <input type="email" id="email" placeholder="Email"><br><br>
-  <input type="password" id="pass" placeholder="Password"><br><br>
-  <button onclick="signup()">Sign Up</button>
-  <button onclick="login()">Login</button>
-  <p id="msg"></p>
-</div>
+  <div class="auth-container">
+    <h1>📸 PhotoShare</h1>
+    <p class="subtitle">Share your moments, discover amazing photos</p>
+    
+    <input type="email" id="email" placeholder="Email address">
+    <input type="password" id="pass" placeholder="Password">
+    
+    <button onclick="signup()">Sign Up</button>
+    <button onclick="login()" class="secondary">Login</button>
+    
+    <p id="msg"></p>
+  </div>
 
-<script type="module">
-import { supabase } from "./supabaseClient.js";
+  <script type="module">
+    import { supabase } from "./supabaseClient.js";
 
-// Force instant login after signup (no email confirmation needed)
-window.signup = async () => {
-  const email = document.getElementById("email").value.trim();
-  const pass = document.getElementById("pass").value;
-  const msg = document.getElementById("msg");
+    window.signup = async () => {
+      const email = document.getElementById("email").value.trim();
+      const pass = document.getElementById("pass").value;
+      const msg = document.getElementById("msg");
 
-  if (!email || !pass) return msg.innerText = "Fill both fields";
+      if (!email || !pass) {
+        msg.innerText = "Fill both fields";
+        msg.className = "error";
+        return;
+      }
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password: pass,
-    options: { emailRedirectTo: location.href }  // important for instant redirect
-  });
+      msg.innerText = "Signing up...";
+      msg.className = "info";
 
-  if (error) {
-    msg.innerText = error.message;
-  } else {
-    msg.innerText = "Signed up & logged in!";
-    // Auto-login after signup
-    await supabase.auth.signInWithPassword({ email, password: pass });
-  }
-};
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: pass,
+        options: { emailRedirectTo: location.href }
+      });
 
-window.login = async () => {
-  const email = document.getElementById("email").value.trim();
-  const pass = document.getElementById("pass").value;
-  const msg = document.getElementById("msg");
+      if (error) {
+        msg.innerText = error.message;
+        msg.className = "error";
+      } else {
+        msg.innerText = "Signing up... Please wait";
+        msg.className = "info";
+        // Auto-login after signup
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pass });
+        if (signInError) {
+          msg.innerText = signInError.message;
+          msg.className = "error";
+        }
+      }
+    };
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-  if (error) msg.innerText = error.message;
-  else msg.innerText = "Logged in!";
-};
+    window.login = async () => {
+      const email = document.getElementById("email").value.trim();
+      const pass = document.getElementById("pass").value;
+      const msg = document.getElementById("msg");
 
-// Auto redirect based on role
-supabase.auth.onAuthStateChange(async (event, session) => {
-  if (session?.user) {
-    const { data, error } = await supabase.from('profiles').select('is_creator').eq('id', session.user.id).single();
-    if (error || !data) {
-      // First time user → make consumer
-      await supabase.from('profiles').upsert({ id: session.user.id, is_creator: false });
-      location.href = "consumer.html";
-    } else if (data.is_creator) {
-      location.href = "creator.html";
-    } else {
-      location.href = "consumer.html";
-    }
-  }
-});
-</script>
+      if (!email || !pass) {
+        msg.innerText = "Fill both fields";
+        msg.className = "error";
+        return;
+      }
+
+      msg.innerText = "Logging in...";
+      msg.className = "info";
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (error) {
+        msg.innerText = error.message;
+        msg.className = "error";
+      } else {
+        msg.innerText = "Logging in...";
+        msg.className = "info";
+      }
+    };
+
+    // Auto redirect based on role
+    let redirecting = false;
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only redirect on sign in/up events and if we have a session
+      if ((event === 'SIGNED_IN' || event === 'SIGNED_UP') && session?.user && !redirecting) {
+        redirecting = true;
+        try {
+          const { data, error } = await supabase.from('profiles').select('is_creator').eq('id', session.user.id).single();
+          if (error || !data) {
+            // First time user → make consumer
+            await supabase.from('profiles').upsert({ id: session.user.id, is_creator: false });
+            location.href = "consumer.html";
+          } else if (data.is_creator) {
+            location.href = "creator.html";
+          } else {
+            location.href = "consumer.html";
+          }
+        } catch (err) {
+          console.error('Redirect error:', err);
+          redirecting = false;
+        }
+      }
+    });
+  </script>
 </body>
 </html>
