@@ -1,0 +1,12 @@
+{
+  "name": "picshare-supabase",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "serve public",
+    "build": "echo 'No build required – pure static site'"
+  },
+  "devDependencies": {
+    "serve": "^14.2.3"
+  }
+}
