@@ -1,12 +1,19 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
+    { "src": "dist/**", "use": "@vercel/static" }
   ],
-  "outputDirectory": "public",
-  "cleanUrls": true,
-  "trailingSlash": false
+  "routes": [
+    { "src": "/creator", "dest": "/dist/creator.html" },
+    { "src": "/creator/(.*)", "dest": "/dist/creator.html" },
+
+    { "src": "/consumer", "dest": "/dist/consumer.html" },
+    { "src": "/consumer/(.*)", "dest": "/dist/consumer.html" },
+
+    { "src": "/photo", "dest": "/dist/photo.html" },
+    { "src": "/photo/(.*)", "dest": "/dist/photo.html" },
+
+    { "src": "/(.*)", "dest": "/dist/$1" },
+    { "src": "/.*", "dest": "/dist/index.html" }
+  ]
 }
