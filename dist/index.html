@@ -14,6 +14,28 @@
     <input type="email" id="email" placeholder="Email address">
     <input type="password" id="pass" placeholder="Password">
     
+    <div class="role-selection" id="roleSelection">
+      <label>Choose your role:</label>
+      <div class="role-options">
+        <div class="role-option">
+          <input type="radio" id="role-consumer" name="role" value="consumer" checked>
+          <label for="role-consumer">
+            <span class="role-icon">👀</span>
+            <span class="role-name">Consumer</span>
+            <span class="role-desc">Browse & enjoy photos</span>
+          </label>
+        </div>
+        <div class="role-option">
+          <input type="radio" id="role-creator" name="role" value="creator">
+          <label for="role-creator">
+            <span class="role-icon">📸</span>
+            <span class="role-name">Creator</span>
+            <span class="role-desc">Upload & share photos</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    
     <button onclick="signup()">Sign Up</button>
     <button onclick="login()" class="secondary">Login</button>
     
@@ -23,10 +45,32 @@
   <script type="module">
     import { supabase } from "./supabaseClient.js";
 
+    // Show/hide role selection based on which button was clicked
+    const signupBtn = document.querySelector('button[onclick="signup()"]');
+    const loginBtn = document.querySelector('button[onclick="login()"]');
+    const roleSelection = document.getElementById('roleSelection');
+
+    // Initially show role selection (for signup)
+    roleSelection.style.display = 'block';
+
+    // Hide role selection when login button is focused/clicked
+    loginBtn.addEventListener('click', () => {
+      roleSelection.style.display = 'none';
+    });
+
+    // Show role selection when signup button is focused/clicked
+    signupBtn.addEventListener('click', () => {
+      roleSelection.style.display = 'block';
+    });
+
     window.signup = async () => {
       const email = document.getElementById("email").value.trim();
       const pass = document.getElementById("pass").value;
       const msg = document.getElementById("msg");
+      
+      // Get selected role
+      const roleRadio = document.querySelector('input[name="role"]:checked');
+      const isCreator = roleRadio && roleRadio.value === 'creator';
 
       if (!email || !pass) {
         msg.innerText = "Fill both fields";
@@ -37,6 +81,9 @@
       msg.innerText = "Signing up...";
       msg.className = "info";
 
+      // Store role choice in sessionStorage before signup
+      sessionStorage.setItem('pendingRole', isCreator ? 'creator' : 'consumer');
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: pass,
@@ -46,14 +93,17 @@
       if (error) {
         msg.innerText = error.message;
         msg.className = "error";
+        sessionStorage.removeItem('pendingRole');
       } else {
         msg.innerText = "Signing up... Please wait";
         msg.className = "info";
+        
         // Auto-login after signup
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pass });
         if (signInError) {
           msg.innerText = signInError.message;
           msg.className = "error";
+          sessionStorage.removeItem('pendingRole');
         }
       }
     };
@@ -91,9 +141,13 @@
         try {
           const { data, error } = await supabase.from('profiles').select('is_creator').eq('id', session.user.id).single();
           if (error || !data) {
-            // First time user → make consumer
-            await supabase.from('profiles').upsert({ id: session.user.id, is_creator: false });
-            location.href = "consumer.html";
+            // First time user → use selected role from signup (stored in sessionStorage)
+            const pendingRole = sessionStorage.getItem('pendingRole');
+            const isCreator = pendingRole === 'creator';
+            sessionStorage.removeItem('pendingRole'); // Clean up
+            
+            await supabase.from('profiles').upsert({ id: session.user.id, is_creator: isCreator });
+            location.href = isCreator ? "creator.html" : "consumer.html";
           } else if (data.is_creator) {
             location.href = "creator.html";
           } else {
