@@ -15,28 +15,52 @@
 <script type="module">
 import { supabase } from "../src/supabaseClient.js";
 
+// Force instant login after signup (no email confirmation needed)
 window.signup = async () => {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+  const msg = document.getElementById("msg");
+
+  if (!email || !pass) return msg.innerText = "Fill both fields";
+
   const { data, error } = await supabase.auth.signUp({
-    email: document.getElementById("email").value,
-    password: document.getElementById("pass").value,
+    email,
+    password: pass,
+    options: { emailRedirectTo: location.href }  // important for instant redirect
   });
-  if (error) document.getElementById("msg").innerText = error.message;
-  else alert("Check your email for confirmation link!");
+
+  if (error) {
+    msg.innerText = error.message;
+  } else {
+    msg.innerText = "Signed up & logged in!";
+    // Auto-login after signup
+    await supabase.auth.signInWithPassword({ email, password: pass });
+  }
 };
 
 window.login = async () => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: document.getElementById("email").value,
-    password: document.getElementById("pass").value,
-  });
-  if (error) document.getElementById("msg").innerText = error.message;
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+  const msg = document.getElementById("msg");
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  if (error) msg.innerText = error.message;
+  else msg.innerText = "Logged in!";
 };
 
+// Auto redirect based on role
 supabase.auth.onAuthStateChange(async (event, session) => {
-  if (session) {
-    const { data } = await supabase.from('profiles').select('is_creator').eq('id', session.user.id).single();
-    if (data?.is_creator) location.href = "creator.html";
-    else location.href = "consumer.html";
+  if (session?.user) {
+    const { data, error } = await supabase.from('profiles').select('is_creator').eq('id', session.user.id).single();
+    if (error || !data) {
+      // First time user → make consumer
+      await supabase.from('profiles').upsert({ id: session.user.id, is_creator: false });
+      location.href = "consumer.html";
+    } else if (data.is_creator) {
+      location.href = "creator.html";
+    } else {
+      location.href = "consumer.html";
+    }
   }
 });
 </script>
